@@ -3,6 +3,7 @@ package com.tm9704.drawingapp
 import android.Manifest
 import android.app.Dialog
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -18,6 +19,13 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.get
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : AppCompatActivity() {
 
@@ -85,6 +93,17 @@ class MainActivity : AppCompatActivity() {
             drawingView?.onClickUndo()
         }
 
+        val ibSave : ImageButton = findViewById(R.id.ib_save)
+        ibSave.setOnClickListener{
+            if(isReadStorageAllowed()){
+                lifecycleScope.launch{
+                    val flDrawingView:FrameLayout = findViewById(R.id.fl_drawing_view_container)
+
+                    saveBitmapFile(getBitmapFromView(flDrawingView))
+                }
+            }
+        }
+
         val ibGallery: ImageButton = findViewById(R.id.ib_gallery)
         ibGallery.setOnClickListener{
             requestStoragePermission()
@@ -132,6 +151,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun isReadStorageAllowed(): Boolean{
+        var result = ContextCompat.checkSelfPermission(this,
+            Manifest.permission.READ_EXTERNAL_STORAGE
+            )
+
+        return result == PackageManager.PERMISSION_GRANTED
+    }
+
     private fun requestStoragePermission(){
         if(ActivityCompat.shouldShowRequestPermissionRationale(
                 this,
@@ -141,7 +168,8 @@ class MainActivity : AppCompatActivity() {
                     "needs to Access Your External Storage")
         }else{
             requestPermission.launch(arrayOf(
-                Manifest.permission.READ_EXTERNAL_STORAGE
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
             ))
         }
     }
@@ -174,5 +202,48 @@ class MainActivity : AppCompatActivity() {
         view.draw(canvas)
 
         return returnedBitmap
+    }
+
+    private suspend fun saveBitmapFile(mBitmap: Bitmap?): String{
+        var result = ""
+        withContext(Dispatchers.IO){
+            if(mBitmap != null){
+                try{
+                    val bytes = ByteArrayOutputStream()
+                    mBitmap.compress(Bitmap.CompressFormat.PNG, 90, bytes)
+
+                    val f = File(externalCacheDir?.absoluteFile.toString()
+                            + File.separator + "DrawingApp_" + System.currentTimeMillis() / 1000 + ".png"
+                    )
+
+                    val fo = FileOutputStream(f)
+                    fo.write(bytes.toByteArray())
+                    fo.close()
+
+                    result = f.absolutePath
+
+                    runOnUiThread{
+                        if(result.isNotEmpty()){
+                            Toast.makeText(
+                                this@MainActivity,
+                                "File saved successfully: $result",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }else{
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Something went wrong while saving the file.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+                catch(e: Exception){
+                    result = ""
+                    e.printStackTrace()
+                }
+            }
+        }
+        return result
     }
 }

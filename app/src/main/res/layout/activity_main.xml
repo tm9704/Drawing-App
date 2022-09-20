@@ -24,6 +24,7 @@
           android:layout_width="match_parent"
           android:layout_height="match_parent"
           android:scaleType="centerCrop"
+          android:src="@drawable/image"
           />
 
       <com.tm9704.drawingapp.DrawingView
